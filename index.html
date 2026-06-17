@@ -47,8 +47,7 @@
     <label>電話番号下4桁</label>
     <input type="text" id="phoneLast4" placeholder="電話番号下4桁を入力">
 
-<button onclick="searchMember()">🪪 会員証を表示</button>
-<button class="sub" onclick="startScanner()">📷 チェックイン</button>
+    <button onclick="searchMember()">🪪 会員証を表示</button>
   </div>
 
   <div id="result"></div>
@@ -115,6 +114,7 @@ function searchMember(){
           会員情報が見つかりません。<br>
           チェックインから新規登録できます。
         </div>
+        <button onclick="startScanner()">📷 QRを読み込む</button>
       `;
       scrollToResult();
       return;
@@ -140,6 +140,8 @@ function showMemberCard(data){
   }
 
   document.getElementById("result").innerHTML = `
+    <button onclick="startScanner()">📷 チェックイン</button>
+
     <div class="card">
       <div class="brand">MEMBER PASS</div>
       <div class="member-id">${escapeHtml(data.memberId)}</div>
