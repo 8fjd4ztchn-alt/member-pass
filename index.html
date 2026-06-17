@@ -3,107 +3,267 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MEMBER PASS QR TEST</title>
+  <title>MEMBER PASS</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
+
   <style>
-    body{
-      font-family: Arial, sans-serif;
-      background:#f6f4ef;
-      margin:0;
-      padding:20px;
-      color:#222;
-    }
-    .wrap{
-      max-width:420px;
-      margin:0 auto;
-      text-align:center;
-    }
-    h1{
-      font-size:28px;
-      margin-bottom:20px;
-    }
-    button{
-      width:100%;
-      padding:16px;
-      font-size:17px;
-      font-weight:bold;
-      border:none;
-      border-radius:999px;
-      background:#222;
-      color:#fff;
-      margin-top:16px;
-    }
-    #reader{
-      margin-top:20px;
-      background:#fff;
-      border-radius:16px;
-      overflow:hidden;
-    }
-    .result{
-      margin-top:18px;
-      background:#fff;
-      border:1px solid #ddd;
-      border-radius:12px;
-      padding:14px;
-      font-weight:bold;
-      word-break:break-all;
-    }
-    .error{
-      color:#b00020;
-      border-color:#f0caca;
-    }
+    body{font-family:Arial,sans-serif;background:#f6f4ef;margin:0;padding:20px;color:#222;}
+    .wrap{max-width:420px;margin:0 auto;}
+    .title{text-align:center;margin-bottom:16px;}
+    .title h1{font-size:30px;margin:0;letter-spacing:1.5px;}
+    .form-box{background:#fff;padding:20px;border-radius:18px;box-shadow:0 4px 14px rgba(0,0,0,.08);}
+    label{font-weight:bold;display:block;margin-top:14px;margin-bottom:6px;}
+    input{width:100%;padding:14px;font-size:16px;box-sizing:border-box;border:1px solid #ccc;border-radius:10px;}
+    button{width:100%;padding:15px;margin-top:18px;font-size:16px;font-weight:bold;border:none;border-radius:999px;background:#222;color:#fff;}
+    .card{margin-top:22px;background:#fff;border-radius:24px;padding:26px 22px;box-shadow:0 6px 18px rgba(0,0,0,.12);border:1px solid #eee;text-align:center;}
+    .brand{font-size:22px;font-weight:800;letter-spacing:1px;margin-bottom:12px;}
+    .member-id{font-size:48px;font-weight:900;letter-spacing:2px;margin:12px 0 14px;}
+    .badge{display:inline-block;padding:16px 32px;border-radius:999px;font-weight:900;font-size:30px;background:#e9f7ef;color:#137333;margin:10px 0 12px;}
+    .badge.warn{background:#fff4e5;color:#b06000;font-size:24px;}
+    .badge.expired{background:#fdeaea;color:#b00020;}
+    .remaining{font-size:22px;font-weight:bold;margin-bottom:22px;}
+    .label{font-size:13px;color:#777;margin-top:14px;}
+    .value{font-size:22px;font-weight:bold;margin-top:4px;}
+    .note{margin-top:20px;font-size:12px;color:#777;line-height:1.6;border-top:1px solid #eee;padding-top:14px;text-align:left;}
+    .error,.success,.info{margin-top:18px;background:#fff;padding:14px;border-radius:12px;line-height:1.6;}
+    .error{border:1px solid #f0caca;color:#b00020;}
+    .success{border:1px solid #b7e1c1;color:#137333;background:#e9f7ef;font-weight:bold;}
+    .info{border:1px solid #ddd;color:#222;}
+    #reader{margin-top:18px;background:#fff;border-radius:16px;overflow:hidden;}
   </style>
 </head>
+
 <body>
-  <div class="wrap">
-    <h1>MEMBER PASS</h1>
+<div class="wrap">
+  <div class="title"><h1>MEMBER PASS</h1></div>
 
-    <button onclick="startQr()">QR読み取りテスト</button>
+  <div class="form-box">
+    <label>氏名カナ</label>
+    <input type="text" id="nameKana" placeholder="氏名カナを入力">
 
-    <div id="reader"></div>
-    <div id="result"></div>
+    <label>電話番号下4桁</label>
+    <input type="text" id="phoneLast4" placeholder="電話番号下4桁を入力">
+
+    <button onclick="searchMember()">会員証を表示</button>
   </div>
 
-  <script>
-    let qrScanner = null;
+  <div id="result"></div>
+  <div id="reader"></div>
+</div>
 
-    function startQr(){
-      document.getElementById("result").innerHTML = "";
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbzj9tkeSp483zVASduf0i69zTc6ZvxSKbhjGOD18_lR1M_3hot22yiAYy8FTQKpKir4Uw/exec";
+
+let scanner = null;
+let pendingPlace = null;
+
+function getInputData(){
+  return {
+    nameKana: document.getElementById("nameKana").value.trim(),
+    phoneLast4: document.getElementById("phoneLast4").value.trim()
+  };
+}
+
+function api(action, params, callback){
+  const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+
+  window[cbName] = function(data){
+    callback(data);
+    delete window[cbName];
+    script.remove();
+  };
+
+  const query = new URLSearchParams({
+    action: action,
+    callback: cbName,
+    ...params
+  });
+
+  const script = document.createElement("script");
+  script.src = API_URL + "?" + query.toString();
+  document.body.appendChild(script);
+}
+
+function searchMember(){
+  stopScanner();
+
+  const input = getInputData();
+
+  if(!input.nameKana || !input.phoneLast4){
+    showError("氏名カナと電話番号下4桁を入力してください。");
+    return;
+  }
+
+  api("search", input, function(data){
+    if(!data.found){
+      document.getElementById("result").innerHTML = `
+        <div class="error">
+          会員情報が見つかりません。<br>
+          店舗・イベントのQRを読み込んで新規登録できます。
+        </div>
+        <button onclick="startScanner()">QRを読み込む</button>
+      `;
+      return;
+    }
+
+    showMemberCard(data);
+  });
+}
+
+function showMemberCard(data){
+  let badgeClass = "";
+  let remainingText = "";
+
+  if(data.status === "更新期限間近"){
+    badgeClass = "warn";
+    remainingText = "残り" + data.remainingDays + "日";
+  } else if(data.status === "失効"){
+    badgeClass = "expired";
+    remainingText = "期限切れ";
+  } else {
+    remainingText = "残り" + data.remainingDays + "日";
+  }
+
+  document.getElementById("result").innerHTML = `
+    <div class="card">
+      <div class="brand">MEMBER PASS</div>
+      <div class="member-id">${escapeHtml(data.memberId)}</div>
+      <div class="badge ${badgeClass}">${escapeHtml(data.status)}</div>
+      <div class="remaining">${escapeHtml(remainingText)}</div>
+
+      <div class="label">氏名</div>
+      <div class="value">${escapeHtml(data.nameKana)}</div>
+
+      <div class="label">有効期限</div>
+      <div class="value">${escapeHtml(data.expiryDate)}</div>
+
+      <div class="note">
+        提携店・イベント受付でこの画面を提示してください。<br>
+        有効期限内の会員のみ特典対象です。
+      </div>
+    </div>
+
+    <button onclick="startScanner()">チェックインする</button>
+  `;
+}
+
+function startScanner(){
+  const input = getInputData();
+
+  if(!input.nameKana || !input.phoneLast4){
+    showError("氏名カナと電話番号下4桁を入力してください。");
+    return;
+  }
+
+  document.getElementById("reader").innerHTML = "";
+
+  scanner = new Html5Qrcode("reader");
+
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 250, height: 250 } },
+    function(decodedText){
+      stopScanner();
+      processQr(decodedText);
+    },
+    function(){}
+  ).catch(function(err){
+    showError("カメラを起動できませんでした。");
+  });
+}
+
+function processQr(qrText){
+  const input = getInputData();
+
+  api("checkin", {
+    nameKana: input.nameKana,
+    phoneLast4: input.phoneLast4,
+    qrText: qrText
+  }, function(res){
+    if(res.success){
+      showSuccess(res);
+      return;
+    }
+
+    if(res.notFound){
+      pendingPlace = {
+        placeId: res.placeId,
+        placeType: res.placeType,
+        placeName: res.placeName
+      };
+
+      document.getElementById("result").innerHTML = `
+        <div class="error">会員情報が見つかりません。</div>
+        <div class="info">
+          利用場所：${escapeHtml(res.placeName)}<br>
+          このまま新規会員登録しますか？
+        </div>
+        <button onclick="registerNow()">新規登録してチェックイン</button>
+      `;
+      return;
+    }
+
+    showError(res.message || "チェックインできませんでした。");
+  });
+}
+
+function registerNow(){
+  const input = getInputData();
+
+  api("register", {
+    nameKana: input.nameKana,
+    phoneLast4: input.phoneLast4,
+    placeId: pendingPlace.placeId
+  }, function(res){
+    if(res.success){
+      document.getElementById("result").innerHTML = `
+        <div class="success">
+          ${escapeHtml(res.message)}<br>
+          会員ID：${escapeHtml(res.memberId)}<br>
+          利用場所：${escapeHtml(res.placeName)}
+        </div>
+      `;
+      pendingPlace = null;
+      return;
+    }
+
+    showError(res.message || "新規登録できませんでした。");
+  });
+}
+
+function showSuccess(res){
+  document.getElementById("result").innerHTML += `
+    <div class="success">
+      ${escapeHtml(res.message)}<br>
+      利用場所：${escapeHtml(res.placeName)}
+    </div>
+  `;
+}
+
+function showError(message){
+  document.getElementById("result").innerHTML = `
+    <div class="error">${escapeHtml(message)}</div>
+  `;
+}
+
+function stopScanner(){
+  if(scanner){
+    scanner.stop().then(function(){
+      scanner.clear();
+      scanner = null;
       document.getElementById("reader").innerHTML = "";
+    }).catch(function(){});
+  }
+}
 
-      if (typeof Html5Qrcode === "undefined") {
-        document.getElementById("result").innerHTML =
-          '<div class="result error">QRライブラリを読み込めませんでした</div>';
-        return;
-      }
-
-      qrScanner = new Html5Qrcode("reader");
-
-      qrScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        function(decodedText){
-          qrScanner.stop().then(function(){
-            document.getElementById("reader").innerHTML = "";
-            document.getElementById("result").innerHTML =
-              '<div class="result">読み取り成功：<br>' + escapeHtml(decodedText) + '</div>';
-          });
-        },
-        function(errorMessage){}
-      ).catch(function(err){
-        document.getElementById("result").innerHTML =
-          '<div class="result error">カメラ起動失敗：<br>' + escapeHtml(String(err)) + '</div>';
-      });
-    }
-
-    function escapeHtml(value){
-      return String(value || "")
-        .replace(/&/g,"&amp;")
-        .replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;")
-        .replace(/"/g,"&quot;")
-        .replace(/'/g,"&#039;");
-    }
-  </script>
+function escapeHtml(value){
+  return String(value || "")
+    .replace(/&/g,"&amp;")
+    .replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;")
+    .replace(/'/g,"&#039;");
+}
+</script>
 </body>
 </html>
