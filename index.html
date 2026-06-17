@@ -7,13 +7,14 @@
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body{font-family:Arial,sans-serif;background:#f6f4ef;margin:0;padding:20px;color:#222;}
-    .wrap{max-width:420px;margin:0 auto;}
+    .wrap{max-width:420px;margin:0 auto;padding-bottom:30px;}
     .title{text-align:center;margin-bottom:16px;}
     .title h1{font-size:30px;margin:0;letter-spacing:1.5px;}
     .form-box{background:#fff;padding:20px;border-radius:18px;box-shadow:0 4px 14px rgba(0,0,0,.08);}
     label{font-weight:bold;display:block;margin-top:14px;margin-bottom:6px;}
     input{width:100%;padding:14px;font-size:16px;box-sizing:border-box;border:1px solid #ccc;border-radius:10px;}
-    button{width:100%;padding:15px;margin-top:18px;font-size:16px;font-weight:bold;border:none;border-radius:999px;background:#222;color:#fff;}
+    button{width:100%;padding:16px;margin-top:16px;font-size:17px;font-weight:bold;border:none;border-radius:999px;background:#222;color:#fff;}
+    button.sub{background:#fff;color:#222;border:2px solid #222;}
     .card{margin-top:22px;background:#fff;border-radius:24px;padding:26px 22px;box-shadow:0 6px 18px rgba(0,0,0,.12);border:1px solid #eee;text-align:center;}
     .brand{font-size:22px;font-weight:800;letter-spacing:1px;margin-bottom:12px;}
     .member-id{font-size:48px;font-weight:900;letter-spacing:2px;margin:12px 0 14px;}
@@ -28,7 +29,10 @@
     .error{border:1px solid #f0caca;color:#b00020;}
     .success{border:1px solid #b7e1c1;color:#137333;background:#e9f7ef;font-weight:bold;}
     .info{border:1px solid #ddd;color:#222;}
-    #reader{margin-top:18px;background:#fff;border-radius:16px;overflow:hidden;}
+    #cameraOverlay{display:none;position:fixed;inset:0;background:#000;z-index:9999;padding:18px;box-sizing:border-box;}
+    #cameraHeader{color:#fff;text-align:center;font-weight:bold;font-size:18px;margin-bottom:12px;}
+    #reader{background:#fff;border-radius:18px;overflow:hidden;}
+    #closeCamera{background:#fff;color:#222;margin-top:16px;}
   </style>
 </head>
 
@@ -43,11 +47,17 @@
     <label>電話番号下4桁</label>
     <input type="text" id="phoneLast4" placeholder="電話番号下4桁を入力">
 
-    <button onclick="searchMember()">会員証を表示</button>
+    <button onclick="startScanner()">📷 チェックイン</button>
+    <button class="sub" onclick="searchMember()">🪪 会員証を表示</button>
   </div>
 
   <div id="result"></div>
+</div>
+
+<div id="cameraOverlay">
+  <div id="cameraHeader">QRコードを読み込んでください</div>
   <div id="reader"></div>
+  <button id="closeCamera" onclick="closeCamera()">閉じる</button>
 </div>
 
 <script>
@@ -57,9 +67,7 @@ let scanner = null;
 let pendingPlace = null;
 
 function closeKeyboard(){
-  if(document.activeElement){
-    document.activeElement.blur();
-  }
+  if(document.activeElement) document.activeElement.blur();
 }
 
 function getInputData(){
@@ -69,20 +77,11 @@ function getInputData(){
   };
 }
 
-function scrollToEl(id){
+function scrollToResult(){
   setTimeout(function(){
-    const el = document.getElementById(id);
+    const el = document.getElementById("result");
     if(el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, 250);
-}
-
-function scrollToBottom(){
-  setTimeout(function(){
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: "smooth"
-    });
-  }, 350);
+  }, 200);
 }
 
 function api(action, params, callback){
@@ -114,17 +113,15 @@ function searchMember(){
       document.getElementById("result").innerHTML = `
         <div class="error">
           会員情報が見つかりません。<br>
-          店舗・イベントのQRを読み込んで新規登録できます。
+          チェックインから新規登録できます。
         </div>
-        <button onclick="startScanner()">QRを読み込む</button>
       `;
-      scrollToEl("result");
-      scrollToBottom();
+      scrollToResult();
       return;
     }
 
     showMemberCard(data);
-    scrollToEl("result");
+    scrollToResult();
   });
 }
 
@@ -160,8 +157,6 @@ function showMemberCard(data){
         有効期限内の会員のみ特典対象です。
       </div>
     </div>
-
-    <button onclick="startScanner()">チェックインする</button>
   `;
 }
 
@@ -175,27 +170,41 @@ function startScanner(){
     return;
   }
 
+  document.getElementById("cameraOverlay").style.display = "block";
   document.getElementById("reader").innerHTML = "";
-  scrollToEl("reader");
-  scrollToBottom();
 
   scanner = new Html5Qrcode("reader");
 
   scanner.start(
     { facingMode: "environment" },
-    { fps: 10, qrbox: { width: 250, height: 250 } },
+    { fps: 10, qrbox: { width: 280, height: 280 } },
     function(decodedText){
-      stopScanner();
+      closeCamera();
       processQr(decodedText);
     },
     function(){}
   ).catch(function(){
+    closeCamera();
     showError("カメラを起動できませんでした。");
   });
 }
 
+function closeCamera(){
+  document.getElementById("cameraOverlay").style.display = "none";
+
+  if(scanner){
+    scanner.stop().then(function(){
+      scanner.clear();
+      scanner = null;
+      document.getElementById("reader").innerHTML = "";
+    }).catch(function(){
+      scanner = null;
+      document.getElementById("reader").innerHTML = "";
+    });
+  }
+}
+
 function processQr(qrText){
-  closeKeyboard();
   const input = getInputData();
 
   api("checkin", {
@@ -223,8 +232,7 @@ function processQr(qrText){
         </div>
         <button onclick="registerNow()">新規登録してチェックイン</button>
       `;
-      scrollToEl("result");
-      scrollToBottom();
+      scrollToResult();
       return;
     }
 
@@ -246,13 +254,12 @@ function registerNow(){
         <div class="success">
           ${escapeHtml(res.message)}<br>
           会員ID：${escapeHtml(res.memberId)}<br>
-          利用場所：${escapeHtml(res.placeName)}<br>
-          <br>
+          利用場所：${escapeHtml(res.placeName)}<br><br>
           会員証を表示します。
         </div>
       `;
       pendingPlace = null;
-      scrollToEl("result");
+      scrollToResult();
 
       setTimeout(function(){
         searchMember();
@@ -266,22 +273,20 @@ function registerNow(){
 }
 
 function showSuccess(res){
-  document.getElementById("result").innerHTML += `
+  document.getElementById("result").innerHTML = `
     <div class="success">
       ${escapeHtml(res.message)}<br>
       利用場所：${escapeHtml(res.placeName)}
     </div>
   `;
-  scrollToEl("result");
-  scrollToBottom();
+  scrollToResult();
 }
 
 function showError(message){
   document.getElementById("result").innerHTML = `
     <div class="error">${escapeHtml(message)}</div>
   `;
-  scrollToEl("result");
-  scrollToBottom();
+  scrollToResult();
 }
 
 function stopScanner(){
