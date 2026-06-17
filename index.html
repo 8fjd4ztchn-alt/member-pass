@@ -14,7 +14,6 @@
     label{font-weight:bold;display:block;margin-top:14px;margin-bottom:6px;}
     input{width:100%;padding:14px;font-size:16px;box-sizing:border-box;border:1px solid #ccc;border-radius:10px;}
     button{width:100%;padding:16px;margin-top:16px;font-size:17px;font-weight:bold;border:none;border-radius:999px;background:#222;color:#fff;}
-    button.sub{background:#fff;color:#222;border:2px solid #222;}
     .card{margin-top:22px;background:#fff;border-radius:24px;padding:26px 22px;box-shadow:0 6px 18px rgba(0,0,0,.12);border:1px solid #eee;text-align:center;}
     .brand{font-size:22px;font-weight:800;letter-spacing:1px;margin-bottom:12px;}
     .member-id{font-size:48px;font-weight:900;letter-spacing:2px;margin:18px 0 14px;}
@@ -140,11 +139,10 @@ function showMemberCard(data){
   }
 
   document.getElementById("result").innerHTML = `
+    <button onclick="startScanner()">📷 チェックイン</button>
+
     <div class="card">
       <div class="brand">MEMBER PASS</div>
-
-      <button onclick="startScanner()">📷 チェックイン</button>
-
       <div class="member-id">${escapeHtml(data.memberId)}</div>
       <div class="badge ${badgeClass}">${escapeHtml(data.status)}</div>
       <div class="remaining">${escapeHtml(remainingText)}</div>
