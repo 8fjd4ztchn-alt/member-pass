@@ -1,10 +1,109 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>MEMBER PASS</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MEMBER PASS QR TEST</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body{
+      font-family: Arial, sans-serif;
+      background:#f6f4ef;
+      margin:0;
+      padding:20px;
+      color:#222;
+    }
+    .wrap{
+      max-width:420px;
+      margin:0 auto;
+      text-align:center;
+    }
+    h1{
+      font-size:28px;
+      margin-bottom:20px;
+    }
+    button{
+      width:100%;
+      padding:16px;
+      font-size:17px;
+      font-weight:bold;
+      border:none;
+      border-radius:999px;
+      background:#222;
+      color:#fff;
+      margin-top:16px;
+    }
+    #reader{
+      margin-top:20px;
+      background:#fff;
+      border-radius:16px;
+      overflow:hidden;
+    }
+    .result{
+      margin-top:18px;
+      background:#fff;
+      border:1px solid #ddd;
+      border-radius:12px;
+      padding:14px;
+      font-weight:bold;
+      word-break:break-all;
+    }
+    .error{
+      color:#b00020;
+      border-color:#f0caca;
+    }
+  </style>
 </head>
 <body>
-<h1>MEMBER PASS</h1>
+  <div class="wrap">
+    <h1>MEMBER PASS</h1>
+
+    <button onclick="startQr()">QR読み取りテスト</button>
+
+    <div id="reader"></div>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    let qrScanner = null;
+
+    function startQr(){
+      document.getElementById("result").innerHTML = "";
+      document.getElementById("reader").innerHTML = "";
+
+      if (typeof Html5Qrcode === "undefined") {
+        document.getElementById("result").innerHTML =
+          '<div class="result error">QRライブラリを読み込めませんでした</div>';
+        return;
+      }
+
+      qrScanner = new Html5Qrcode("reader");
+
+      qrScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        function(decodedText){
+          qrScanner.stop().then(function(){
+            document.getElementById("reader").innerHTML = "";
+            document.getElementById("result").innerHTML =
+              '<div class="result">読み取り成功：<br>' + escapeHtml(decodedText) + '</div>';
+          });
+        },
+        function(errorMessage){}
+      ).catch(function(err){
+        document.getElementById("result").innerHTML =
+          '<div class="result error">カメラ起動失敗：<br>' + escapeHtml(String(err)) + '</div>';
+      });
+    }
+
+    function escapeHtml(value){
+      return String(value || "")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#039;");
+    }
+  </script>
 </body>
 </html>
-/edit/main/index.html
