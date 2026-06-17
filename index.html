@@ -56,6 +56,12 @@ const API_URL = "https://script.google.com/macros/s/AKfycbzj9tkeSp483zVASduf0i69
 let scanner = null;
 let pendingPlace = null;
 
+function closeKeyboard(){
+  if(document.activeElement){
+    document.activeElement.blur();
+  }
+}
+
 function getInputData(){
   return {
     nameKana: document.getElementById("nameKana").value.trim(),
@@ -67,7 +73,16 @@ function scrollToEl(id){
   setTimeout(function(){
     const el = document.getElementById(id);
     if(el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, 150);
+  }, 250);
+}
+
+function scrollToBottom(){
+  setTimeout(function(){
+    window.scrollTo({
+      top: document.body.scrollHeight,
+      behavior: "smooth"
+    });
+  }, 350);
 }
 
 function api(action, params, callback){
@@ -84,7 +99,9 @@ function api(action, params, callback){
 }
 
 function searchMember(){
+  closeKeyboard();
   stopScanner();
+
   const input = getInputData();
 
   if(!input.nameKana || !input.phoneLast4){
@@ -102,6 +119,7 @@ function searchMember(){
         <button onclick="startScanner()">QRを読み込む</button>
       `;
       scrollToEl("result");
+      scrollToBottom();
       return;
     }
 
@@ -148,6 +166,8 @@ function showMemberCard(data){
 }
 
 function startScanner(){
+  closeKeyboard();
+
   const input = getInputData();
 
   if(!input.nameKana || !input.phoneLast4){
@@ -157,6 +177,7 @@ function startScanner(){
 
   document.getElementById("reader").innerHTML = "";
   scrollToEl("reader");
+  scrollToBottom();
 
   scanner = new Html5Qrcode("reader");
 
@@ -174,6 +195,7 @@ function startScanner(){
 }
 
 function processQr(qrText){
+  closeKeyboard();
   const input = getInputData();
 
   api("checkin", {
@@ -202,6 +224,7 @@ function processQr(qrText){
         <button onclick="registerNow()">新規登録してチェックイン</button>
       `;
       scrollToEl("result");
+      scrollToBottom();
       return;
     }
 
@@ -210,6 +233,7 @@ function processQr(qrText){
 }
 
 function registerNow(){
+  closeKeyboard();
   const input = getInputData();
 
   api("register", {
@@ -249,6 +273,7 @@ function showSuccess(res){
     </div>
   `;
   scrollToEl("result");
+  scrollToBottom();
 }
 
 function showError(message){
@@ -256,6 +281,7 @@ function showError(message){
     <div class="error">${escapeHtml(message)}</div>
   `;
   scrollToEl("result");
+  scrollToBottom();
 }
 
 function stopScanner(){
