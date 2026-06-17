@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MEMBER PASS</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
-
   <style>
     body{font-family:Arial,sans-serif;background:#f6f4ef;margin:0;padding:20px;color:#222;}
     .wrap{max-width:420px;margin:0 auto;}
@@ -67,27 +66,18 @@ function getInputData(){
 function scrollToEl(id){
   setTimeout(function(){
     const el = document.getElementById(id);
-    if(el){
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if(el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, 150);
 }
 
 function api(action, params, callback){
   const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
-
   window[cbName] = function(data){
     callback(data);
     delete window[cbName];
     script.remove();
   };
-
-  const query = new URLSearchParams({
-    action: action,
-    callback: cbName,
-    ...params
-  });
-
+  const query = new URLSearchParams({ action: action, callback: cbName, ...params });
   const script = document.createElement("script");
   script.src = API_URL + "?" + query.toString();
   document.body.appendChild(script);
@@ -95,7 +85,6 @@ function api(action, params, callback){
 
 function searchMember(){
   stopScanner();
-
   const input = getInputData();
 
   if(!input.nameKana || !input.phoneLast4){
@@ -179,7 +168,7 @@ function startScanner(){
       processQr(decodedText);
     },
     function(){}
-  ).catch(function(err){
+  ).catch(function(){
     showError("カメラを起動できませんでした。");
   });
 }
@@ -233,11 +222,18 @@ function registerNow(){
         <div class="success">
           ${escapeHtml(res.message)}<br>
           会員ID：${escapeHtml(res.memberId)}<br>
-          利用場所：${escapeHtml(res.placeName)}
+          利用場所：${escapeHtml(res.placeName)}<br>
+          <br>
+          会員証を表示します。
         </div>
       `;
       pendingPlace = null;
       scrollToEl("result");
+
+      setTimeout(function(){
+        searchMember();
+      }, 1500);
+
       return;
     }
 
