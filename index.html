@@ -64,6 +64,15 @@ function getInputData(){
   };
 }
 
+function scrollToEl(id){
+  setTimeout(function(){
+    const el = document.getElementById(id);
+    if(el){
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, 150);
+}
+
 function api(action, params, callback){
   const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
 
@@ -103,10 +112,12 @@ function searchMember(){
         </div>
         <button onclick="startScanner()">QRを読み込む</button>
       `;
+      scrollToEl("result");
       return;
     }
 
     showMemberCard(data);
+    scrollToEl("result");
   });
 }
 
@@ -156,6 +167,7 @@ function startScanner(){
   }
 
   document.getElementById("reader").innerHTML = "";
+  scrollToEl("reader");
 
   scanner = new Html5Qrcode("reader");
 
@@ -200,6 +212,7 @@ function processQr(qrText){
         </div>
         <button onclick="registerNow()">新規登録してチェックイン</button>
       `;
+      scrollToEl("result");
       return;
     }
 
@@ -224,6 +237,7 @@ function registerNow(){
         </div>
       `;
       pendingPlace = null;
+      scrollToEl("result");
       return;
     }
 
@@ -238,12 +252,14 @@ function showSuccess(res){
       利用場所：${escapeHtml(res.placeName)}
     </div>
   `;
+  scrollToEl("result");
 }
 
 function showError(message){
   document.getElementById("result").innerHTML = `
     <div class="error">${escapeHtml(message)}</div>
   `;
+  scrollToEl("result");
 }
 
 function stopScanner(){
