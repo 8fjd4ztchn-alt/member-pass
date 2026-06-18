@@ -1,313 +1,491 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MEMBER PASS</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    body{font-family:Arial,sans-serif;background:#f6f4ef;margin:0;padding:20px;color:#222;}
-    .wrap{max-width:420px;margin:0 auto;padding-bottom:30px;}
-    .title{text-align:center;margin-bottom:16px;}
-    .title h1{font-size:30px;margin:0;letter-spacing:1.5px;}
-    .form-box{background:#fff;padding:20px;border-radius:18px;box-shadow:0 4px 14px rgba(0,0,0,.08);}
-    label{font-weight:bold;display:block;margin-top:14px;margin-bottom:6px;}
-    input{width:100%;padding:14px;font-size:16px;box-sizing:border-box;border:1px solid #ccc;border-radius:10px;}
-    button{width:100%;padding:16px;margin-top:16px;font-size:17px;font-weight:bold;border:none;border-radius:999px;background:#222;color:#fff;}
-    .card{margin-top:22px;background:#fff;border-radius:24px;padding:26px 22px;box-shadow:0 6px 18px rgba(0,0,0,.12);border:1px solid #eee;text-align:center;}
-    .brand{font-size:22px;font-weight:800;letter-spacing:1px;margin-bottom:12px;}
-    .member-id{font-size:48px;font-weight:900;letter-spacing:2px;margin:18px 0 14px;}
-    .badge{display:inline-block;padding:16px 32px;border-radius:999px;font-weight:900;font-size:30px;background:#e9f7ef;color:#137333;margin:10px 0 12px;}
-    .badge.warn{background:#fff4e5;color:#b06000;font-size:24px;}
-    .badge.expired{background:#fdeaea;color:#b00020;}
-    .remaining{font-size:22px;font-weight:bold;margin-bottom:22px;}
-    .label{font-size:13px;color:#777;margin-top:14px;}
-    .value{font-size:22px;font-weight:bold;margin-top:4px;}
-    .note{margin-top:20px;font-size:12px;color:#777;line-height:1.6;border-top:1px solid #eee;padding-top:14px;text-align:left;}
-    .error,.success,.info{margin-top:18px;background:#fff;padding:14px;border-radius:12px;line-height:1.6;}
-    .error{border:1px solid #f0caca;color:#b00020;}
-    .success{border:1px solid #b7e1c1;color:#137333;background:#e9f7ef;font-weight:bold;}
-    .info{border:1px solid #ddd;color:#222;}
-    #cameraOverlay{display:none;position:fixed;inset:0;background:#000;z-index:9999;padding:18px;box-sizing:border-box;}
-    #cameraHeader{color:#fff;text-align:center;font-weight:bold;font-size:18px;margin-bottom:12px;}
-    #reader{background:#fff;border-radius:18px;overflow:hidden;}
-    #closeCamera{background:#fff;color:#222;margin-top:16px;}
-  </style>
-</head>
+const SPREADSHEET_ID = "1H3MU3DtHB65bxscaLoQpSkXeuwGl46xZfzYXIgjCIB0";
 
-<body>
-<div class="wrap">
-  <div class="title"><h1>MEMBER PASS</h1></div>
+const SHEET_MEMBER = "会員台帳";
+const SHEET_HISTORY = "利用履歴";
+const SHEET_QR = "QR管理";
 
-  <div class="form-box">
-    <label>氏名カナ</label>
-    <input type="text" id="nameKana" placeholder="氏名カナを入力">
+const TIMEZONE = "Asia/Tokyo";
+const VALID_DAYS = 180;
 
-    <label>電話番号下4桁</label>
-    <input type="text" id="phoneLast4" placeholder="電話番号下4桁を入力">
-
-    <button onclick="searchMember()">🪪 会員証を表示</button>
-  </div>
-
-  <div id="result"></div>
-</div>
-
-<div id="cameraOverlay">
-  <div id="cameraHeader">QRコードを読み込んでください</div>
-  <div id="reader"></div>
-  <button id="closeCamera" onclick="closeCamera()">閉じる</button>
-</div>
-
-<script>
-const API_URL = "https://script.google.com/macros/s/AKfycbzj9tkeSp483zVASduf0i69zTc6ZvxSKbhjGOD18_lR1M_3hot22yiAYy8FTQKpKir4Uw/exec";
-
-let scanner = null;
-let pendingPlace = null;
-
-function closeKeyboard(){
-  if(document.activeElement) document.activeElement.blur();
+function doGet(e) {
+  if (e && e.parameter && e.parameter.action) return handleApi_(e);
+  return HtmlService.createHtmlOutput("MEMBER PASS API");
 }
 
-function getInputData(){
-  return {
-    nameKana: document.getElementById("nameKana").value.trim(),
-    phoneLast4: document.getElementById("phoneLast4").value.trim()
-  };
-}
+function handleApi_(e) {
+  const callback = e.parameter.callback || "callback";
+  let result = {};
 
-function scrollToResult(){
-  setTimeout(function(){
-    const el = document.getElementById("result");
-    if(el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, 200);
-}
+  try {
+    const action = e.parameter.action;
 
-function api(action, params, callback){
-  const cbName = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
-  window[cbName] = function(data){
-    callback(data);
-    delete window[cbName];
-    script.remove();
-  };
-  const query = new URLSearchParams({ action: action, callback: cbName, ...params });
-  const script = document.createElement("script");
-  script.src = API_URL + "?" + query.toString();
-  document.body.appendChild(script);
-}
-
-function searchMember(){
-  closeKeyboard();
-  stopScanner();
-
-  const input = getInputData();
-
-  if(!input.nameKana || !input.phoneLast4){
-    showError("氏名カナと電話番号下4桁を入力してください。");
-    return;
-  }
-
-  api("search", input, function(data){
-    if(!data.found){
-      document.getElementById("result").innerHTML = `
-        <div class="error">
-          会員情報が見つかりません。<br>
-          チェックインから新規登録できます。
-        </div>
-        <button onclick="startScanner()">📷 QRを読み込む</button>
-      `;
-      scrollToResult();
-      return;
+    if (action === "search") {
+      result = searchMember(e.parameter.nameKana, e.parameter.phoneLast4);
+    } else if (action === "checkin") {
+      result = checkInMember(e.parameter.nameKana, e.parameter.phoneLast4, e.parameter.qrText);
+    } else if (action === "register") {
+      result = registerAndCheckIn(e.parameter.nameKana, e.parameter.phoneLast4, e.parameter.placeId);
+    } else {
+      result = { success: false, message: "無効な処理です。" };
     }
-
-    showMemberCard(data);
-    scrollToResult();
-  });
-}
-
-function showMemberCard(data){
-  let badgeClass = "";
-  let remainingText = "";
-
-  if(data.status === "更新期限間近"){
-    badgeClass = "warn";
-    remainingText = "残り" + data.remainingDays + "日";
-  } else if(data.status === "失効"){
-    badgeClass = "expired";
-    remainingText = "期限切れ";
-  } else {
-    remainingText = "残り" + data.remainingDays + "日";
+  } catch (err) {
+    result = { success: false, message: err.message };
   }
 
-  document.getElementById("result").innerHTML = `
-    <button onclick="startScanner()">📷 チェックイン</button>
-
-    <div class="card">
-      <div class="brand">MEMBER PASS</div>
-      <div class="member-id">${escapeHtml(data.memberId)}</div>
-      <div class="badge ${badgeClass}">${escapeHtml(data.status)}</div>
-      <div class="remaining">${escapeHtml(remainingText)}</div>
-
-      <div class="label">氏名</div>
-      <div class="value">${escapeHtml(data.nameKana)}</div>
-
-      <div class="label">有効期限</div>
-      <div class="value">${escapeHtml(data.expiryDate)}</div>
-
-      <div class="note">
-        提携店・イベント受付でこの画面を提示してください。<br>
-        有効期限内の会員のみ特典対象です。
-      </div>
-    </div>
-  `;
+  return ContentService
+    .createTextOutput(callback + "(" + JSON.stringify(result) + ");")
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 
-function startScanner(){
-  closeKeyboard();
-
-  const input = getInputData();
-
-  if(!input.nameKana || !input.phoneLast4){
-    showError("氏名カナと電話番号下4桁を入力してください。");
-    return;
+function searchMember(nameKana, phoneLast4) {
+  const validation = validateInput_(nameKana, phoneLast4);
+  if (!validation.valid) {
+    return {
+      found: false,
+      invalid: true,
+      message: validation.message
+    };
   }
 
-  document.getElementById("cameraOverlay").style.display = "block";
-  document.getElementById("reader").innerHTML = "";
+  const member = findMember_(nameKana, phoneLast4);
+  if (!member) return { found: false };
 
-  scanner = new Html5Qrcode("reader");
-
-  scanner.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: { width: 280, height: 280 } },
-    function(decodedText){
-      closeCamera();
-      processQr(decodedText);
-    },
-    function(){}
-  ).catch(function(){
-    closeCamera();
-    showError("カメラを起動できませんでした。");
-  });
+  return buildMemberResponse_(member);
 }
 
-function closeCamera(){
-  document.getElementById("cameraOverlay").style.display = "none";
+function checkInMember(nameKana, phoneLast4, qrText) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
 
-  if(scanner){
-    scanner.stop().then(function(){
-      scanner.clear();
-      scanner = null;
-      document.getElementById("reader").innerHTML = "";
-    }).catch(function(){
-      scanner = null;
-      document.getElementById("reader").innerHTML = "";
-    });
-  }
-}
-
-function processQr(qrText){
-  const input = getInputData();
-
-  api("checkin", {
-    nameKana: input.nameKana,
-    phoneLast4: input.phoneLast4,
-    qrText: qrText
-  }, function(res){
-    if(res.success){
-      showSuccess(res);
-      return;
-    }
-
-    if(res.notFound){
-      pendingPlace = {
-        placeId: res.placeId,
-        placeType: res.placeType,
-        placeName: res.placeName
+  try {
+    const validation = validateInput_(nameKana, phoneLast4);
+    if (!validation.valid) {
+      return {
+        success: false,
+        message: validation.message
       };
-
-      document.getElementById("result").innerHTML = `
-        <div class="error">会員情報が見つかりません。</div>
-        <div class="info">
-          利用場所：${escapeHtml(res.placeName)}<br>
-          このまま新規会員登録しますか？
-        </div>
-        <button onclick="registerNow()">新規登録してチェックイン</button>
-      `;
-      scrollToResult();
-      return;
     }
 
-    showError(res.message || "チェックインできませんでした。");
-  });
-}
+    const placeId = extractPlaceId_(qrText);
+    const place = getPlaceById_(placeId);
 
-function registerNow(){
-  closeKeyboard();
-  const input = getInputData();
-
-  api("register", {
-    nameKana: input.nameKana,
-    phoneLast4: input.phoneLast4,
-    placeId: pendingPlace.placeId
-  }, function(res){
-    if(res.success){
-      document.getElementById("result").innerHTML = `
-        <div class="success">
-          ${escapeHtml(res.message)}<br>
-          会員ID：${escapeHtml(res.memberId)}<br>
-          利用場所：${escapeHtml(res.placeName)}<br><br>
-          会員証を表示します。
-        </div>
-      `;
-      pendingPlace = null;
-      scrollToResult();
-
-      setTimeout(function(){
-        searchMember();
-      }, 1500);
-
-      return;
+    if (!place) {
+      return {
+        success: false,
+        message: "無効なQRです。"
+      };
     }
 
-    showError(res.message || "新規登録できませんでした。");
-  });
-}
+    const member = findMember_(nameKana, phoneLast4);
 
-function showSuccess(res){
-  document.getElementById("result").innerHTML = `
-    <div class="success">
-      ${escapeHtml(res.message)}<br>
-      利用場所：${escapeHtml(res.placeName)}
-    </div>
-  `;
-  scrollToResult();
-}
+    if (!member) {
+      return {
+        success: false,
+        notFound: true,
+        placeId: place.placeId,
+        placeType: place.placeType,
+        placeName: place.placeName,
+        message: "会員情報が見つかりません。"
+      };
+    }
 
-function showError(message){
-  document.getElementById("result").innerHTML = `
-    <div class="error">${escapeHtml(message)}</div>
-  `;
-  scrollToResult();
-}
+    const result = updateMemberAndAddHistory_(member.row, place);
 
-function stopScanner(){
-  if(scanner){
-    scanner.stop().then(function(){
-      scanner.clear();
-      scanner = null;
-      document.getElementById("reader").innerHTML = "";
-    }).catch(function(){});
+    return {
+      success: true,
+      duplicate: result.duplicate,
+      registered: false,
+      message: result.duplicate ? "本日はすでにチェックイン済みです" : "チェックイン完了",
+      memberId: result.memberId,
+      placeType: place.placeType,
+      placeName: place.placeName
+    };
+
+  } finally {
+    lock.releaseLock();
   }
 }
 
-function escapeHtml(value){
-  return String(value || "")
-    .replace(/&/g,"&amp;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;")
-    .replace(/'/g,"&#039;");
+function registerAndCheckIn(nameKana, phoneLast4, placeId) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    const validation = validateInput_(nameKana, phoneLast4);
+    if (!validation.valid) {
+      return {
+        success: false,
+        message: validation.message
+      };
+    }
+
+    const place = getPlaceById_(placeId);
+
+    if (!place) {
+      return {
+        success: false,
+        message: "無効なQRです。"
+      };
+    }
+
+    const existing = findMember_(nameKana, phoneLast4);
+
+    if (existing) {
+      const result = updateMemberAndAddHistory_(existing.row, place);
+
+      return {
+        success: true,
+        duplicate: result.duplicate,
+        registered: false,
+        message: result.duplicate ? "本日はすでにチェックイン済みです" : "既存会員としてチェックインしました",
+        memberId: result.memberId,
+        placeType: place.placeType,
+        placeName: place.placeName
+      };
+    }
+
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(SHEET_MEMBER);
+    setMemberSheetFormats_(sheet);
+
+    const now = new Date();
+    const expiryDate = addDays_(now, VALID_DAYS);
+    const memberId = createNextMemberId_(sheet);
+
+    const cleanNameKana = normalizeKana_(nameKana);
+    const cleanPhoneLast4 = normalizePhone_(phoneLast4);
+
+    const barCount = place.placeType === "BAR" ? 1 : 0;
+    const eventCount = place.placeType === "イベント" ? 1 : 0;
+    const partnerCount = place.placeType === "提携店" ? 1 : 0;
+
+    const nextRow = sheet.getLastRow() + 1;
+
+    sheet.getRange(nextRow, 1, 1, 13).setValues([[
+      memberId,
+      cleanNameKana,
+      cleanPhoneLast4,
+      now,
+      expiryDate,
+      "有効",
+      1,
+      barCount,
+      eventCount,
+      partnerCount,
+      place.placeName,
+      place.placeName,
+      now
+    ]]);
+
+    sheet.getRange(nextRow, 3).setNumberFormat("@");
+    sheet.getRange(nextRow, 3).setValue(cleanPhoneLast4);
+
+    addHistory_({
+      memberId: memberId,
+      nameKana: cleanNameKana,
+      phoneLast4: cleanPhoneLast4,
+      placeType: place.placeType,
+      placeName: place.placeName
+    });
+
+    return {
+      success: true,
+      registered: true,
+      duplicate: false,
+      message: "新規登録・チェックイン完了",
+      memberId: memberId,
+      placeType: place.placeType,
+      placeName: place.placeName
+    };
+
+  } finally {
+    lock.releaseLock();
+  }
 }
-</script>
-</body>
-</html>
+
+function updateMemberAndAddHistory_(row, place) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const memberSheet = ss.getSheetByName(SHEET_MEMBER);
+  setMemberSheetFormats_(memberSheet);
+
+  const memberId = memberSheet.getRange(row, 1).getValue();
+  const nameKana = normalizeKana_(memberSheet.getRange(row, 2).getValue());
+  const phoneLast4 = normalizePhoneFromSheet_(memberSheet.getRange(row, 3).getValue());
+
+  memberSheet.getRange(row, 3).setNumberFormat("@");
+  memberSheet.getRange(row, 3).setValue(phoneLast4);
+
+  if (hasCheckedInToday_(memberId, place.placeName)) {
+    return {
+      memberId: memberId,
+      duplicate: true
+    };
+  }
+
+  const now = new Date();
+  const expiryDate = addDays_(now, VALID_DAYS);
+
+  const totalCount = Number(memberSheet.getRange(row, 7).getValue()) || 0;
+  const barCount = Number(memberSheet.getRange(row, 8).getValue()) || 0;
+  const eventCount = Number(memberSheet.getRange(row, 9).getValue()) || 0;
+  const partnerCount = Number(memberSheet.getRange(row, 10).getValue()) || 0;
+
+  memberSheet.getRange(row, 4).setValue(now);
+  memberSheet.getRange(row, 5).setValue(expiryDate);
+  memberSheet.getRange(row, 6).setValue("有効");
+  memberSheet.getRange(row, 7).setValue(totalCount + 1);
+
+  if (place.placeType === "BAR") {
+    memberSheet.getRange(row, 8).setValue(barCount + 1);
+  }
+
+  if (place.placeType === "イベント") {
+    memberSheet.getRange(row, 9).setValue(eventCount + 1);
+  }
+
+  if (place.placeType === "提携店") {
+    memberSheet.getRange(row, 10).setValue(partnerCount + 1);
+  }
+
+  memberSheet.getRange(row, 12).setValue(place.placeName);
+
+  addHistory_({
+    memberId: memberId,
+    nameKana: nameKana,
+    phoneLast4: phoneLast4,
+    placeType: place.placeType,
+    placeName: place.placeName
+  });
+
+  return {
+    memberId: memberId,
+    duplicate: false
+  };
+}
+
+function addHistory_(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_HISTORY);
+  setHistorySheetFormats_(sheet);
+
+  const now = new Date();
+  const ym = Utilities.formatDate(now, TIMEZONE, "yyyy/MM");
+  const cleanPhoneLast4 = normalizePhoneFromSheet_(data.phoneLast4);
+
+  const nextRow = sheet.getLastRow() + 1;
+
+  sheet.getRange(nextRow, 1, 1, 7).setValues([[
+    now,
+    data.memberId,
+    data.nameKana,
+    cleanPhoneLast4,
+    data.placeType,
+    data.placeName,
+    ym
+  ]]);
+
+  sheet.getRange(nextRow, 4).setNumberFormat("@");
+  sheet.getRange(nextRow, 4).setValue(cleanPhoneLast4);
+}
+
+function hasCheckedInToday_(memberId, placeName) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_HISTORY);
+  const data = sheet.getDataRange().getValues();
+
+  const today = Utilities.formatDate(new Date(), TIMEZONE, "yyyy/MM/dd");
+
+  for (let i = 1; i < data.length; i++) {
+    const rowDate = data[i][0];
+    const rowMemberId = normalize_(data[i][1]);
+    const rowPlaceName = normalize_(data[i][5]);
+
+    if (!rowDate) continue;
+
+    const dateText = Utilities.formatDate(new Date(rowDate), TIMEZONE, "yyyy/MM/dd");
+
+    if (
+      rowMemberId === normalize_(memberId) &&
+      rowPlaceName === normalize_(placeName) &&
+      dateText === today
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function findMember_(nameKana, phoneLast4) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_MEMBER);
+  setMemberSheetFormats_(sheet);
+
+  const data = sheet.getDataRange().getValues();
+
+  const inputNameKana = normalizeKana_(nameKana);
+  const inputPhoneLast4 = normalizePhone_(phoneLast4);
+
+  for (let i = 1; i < data.length; i++) {
+    const rowNameKana = normalizeKana_(data[i][1]);
+    const rowPhoneLast4 = normalizePhoneFromSheet_(data[i][2]);
+
+    if (rowNameKana === inputNameKana && rowPhoneLast4 === inputPhoneLast4) {
+      const row = i + 1;
+
+      sheet.getRange(row, 3).setNumberFormat("@");
+      sheet.getRange(row, 3).setValue(rowPhoneLast4);
+
+      return {
+        row: row,
+        memberId: data[i][0],
+        nameKana: rowNameKana,
+        phoneLast4: rowPhoneLast4,
+        expiryDate: data[i][4]
+      };
+    }
+  }
+
+  return null;
+}
+
+function buildMemberResponse_(member) {
+  const expiryDate = new Date(member.expiryDate);
+  const today = new Date();
+
+  today.setHours(0, 0, 0, 0);
+  expiryDate.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+
+  let status = "有効";
+
+  if (diffDays < 0) {
+    status = "失効";
+  } else if (diffDays <= 30) {
+    status = "更新期限間近";
+  }
+
+  return {
+    found: true,
+    memberId: member.memberId,
+    nameKana: member.nameKana,
+    phoneLast4: member.phoneLast4,
+    expiryDate: Utilities.formatDate(expiryDate, TIMEZONE, "yyyy/MM/dd"),
+    status: status,
+    remainingDays: diffDays
+  };
+}
+
+function getPlaceById_(placeId) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_QR);
+  const data = sheet.getDataRange().getValues();
+
+  const targetId = normalize_(placeId);
+
+  for (let i = 1; i < data.length; i++) {
+    const rowPlaceId = normalize_(data[i][0]);
+    const placeType = normalize_(data[i][1]);
+    const placeName = normalize_(data[i][2]);
+    const status = normalize_(data[i][3]);
+
+    if (rowPlaceId === targetId && status === "有効") {
+      return {
+        placeId: rowPlaceId,
+        placeType: placeType,
+        placeName: placeName
+      };
+    }
+  }
+
+  return null;
+}
+
+function createNextMemberId_(sheet) {
+  const data = sheet.getDataRange().getValues();
+  let maxNum = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const id = String(data[i][0] || "");
+    const match = id.match(/^R(\d+)$/);
+
+    if (match) {
+      maxNum = Math.max(maxNum, Number(match[1]));
+    }
+  }
+
+  return "R" + String(maxNum + 1).padStart(4, "0");
+}
+
+function extractPlaceId_(qrText) {
+  const text = normalize_(qrText);
+
+  try {
+    const url = new URL(text);
+    return normalize_(url.searchParams.get("id"));
+  } catch (e) {
+    return text;
+  }
+}
+
+function validateInput_(nameKana, phoneLast4) {
+  const cleanNameKana = normalizeKana_(nameKana);
+  const cleanPhoneLast4 = normalize_(phoneLast4);
+
+  if (!/^[ァ-ヶー]+$/.test(cleanNameKana)) {
+    return {
+      valid: false,
+      message: "氏名カナは全角カタカナで入力してください。"
+    };
+  }
+
+  if (!/^\d{4}$/.test(cleanPhoneLast4)) {
+    return {
+      valid: false,
+      message: "電話番号下4桁は半角数字4桁で入力してください。"
+    };
+  }
+
+  return {
+    valid: true
+  };
+}
+
+function setMemberSheetFormats_(sheet) {
+  if (!sheet) return;
+  sheet.getRange("C:C").setNumberFormat("@");
+}
+
+function setHistorySheetFormats_(sheet) {
+  if (!sheet) return;
+  sheet.getRange("D:D").setNumberFormat("@");
+}
+
+function addDays_(date, days) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function normalize_(value) {
+  return String(value || "").trim();
+}
+
+function normalizeKana_(value) {
+  return String(value || "").trim();
+}
+
+function normalizePhone_(value) {
+  return String(value || "").trim();
+}
+
+function normalizePhoneFromSheet_(value) {
+  const text = String(value || "").trim();
+
+  if (/^\d{1,3}$/.test(text)) {
+    return text.padStart(4, "0");
+  }
+
+  return text;
+}
